@@ -1,0 +1,33 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write SSH key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Copy files to EC2
+        run: |
+          scp -i key.pem -o StrictHostKeyChecking=no Dockerfile index.html ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/docker-app/
+
+      - name: Deploy app on EC2
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/docker-app &&
+            docker build -t myapp . &&
+            docker stop myapp-container || true &&
+            docker rm myapp-container || true &&
+            docker run -d --name myapp-container -p 80:80 myapp
+          "
